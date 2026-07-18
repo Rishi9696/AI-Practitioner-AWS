@@ -471,6 +471,361 @@ a → 2 · b → 3 · c → 4 · d → 1
 
 ---
 
+## Additional Practice Questions (Exam-Style)
+
+### Multiple choice (one correct answer)
+
+**22.** A media company wants to automatically add captions to thousands of user-uploaded videos. Which combination of services best fits an automated captioning workflow?
+
+A. Amazon Polly then Amazon Translate · B. Amazon Transcribe then Amazon Translate · C. Amazon Comprehend then Amazon Polly · D. Amazon Rekognition then Amazon Lex
+
+<details><summary>Answer</summary>
+
+**B.** Transcribe converts the audio track to text (captions); Translate then localizes those captions into other languages. Polly is text→speech (the wrong direction).
+</details>
+
+**23.** A developer wants a chat-based assistant that can answer employee questions using the company's internal documents and help write code. Which AWS service is purpose-built for this?
+
+A. Amazon Lex · B. Amazon Q · C. Amazon Polly · D. Amazon Personalize
+
+<details><summary>Answer</summary>
+
+**B — Amazon Q.** A GenAI assistant for business (chat over company data) and developers (coding help). Lex builds task-oriented bots but isn't a GenAI knowledge assistant.
+</details>
+
+**24.** Which learning approach is used to train a robot to walk by rewarding forward progress and penalizing falls?
+
+A. Supervised learning · B. Unsupervised learning · C. Reinforcement learning · D. Self-supervised learning
+
+<details><summary>Answer</summary>
+
+**C — Reinforcement learning.** An agent learns a policy through trial and error guided by a reward signal from the environment.
+</details>
+
+**25.** A team has 100,000 product images but only 2,000 are labeled with categories. They want to reduce labeling cost while still training a classifier. Which approach fits best?
+
+A. Fully supervised learning · B. Semi-supervised learning · C. Reinforcement learning · D. Clustering only
+
+<details><summary>Answer</summary>
+
+**B — Semi-supervised learning.** It combines a small labeled set with a large unlabeled set to cut labeling cost while still producing a classifier.
+</details>
+
+**26.** Which technique answers the question "how many units will we sell next month?"
+
+A. Classification · B. Clustering · C. Forecasting (regression on time-series) · D. Anomaly detection
+
+<details><summary>Answer</summary>
+
+**C — Forecasting.** Predicting a future continuous value from time-ordered history is time-series forecasting (a supervised, regression-style task).
+</details>
+
+**27.** A bank's fraud model flags 100 transactions as fraudulent; only 60 actually were. Of all real fraud in the period (150 cases), it caught 60. What is the model's precision and recall?
+
+A. Precision 60%, Recall 40% · B. Precision 40%, Recall 60% · C. Precision 60%, Recall 60% · D. Precision 40%, Recall 40%
+
+<details><summary>Answer</summary>
+
+**A.** Precision = TP/(TP+FP) = 60/100 = **60%**. Recall = TP/(TP+FN) = 60/150 = **40%**.
+</details>
+
+**28.** A model correctly predicts the majority class 95% of the time on a dataset where 95% of samples belong to that class. Why is accuracy a poor metric here?
+
+A. Accuracy cannot be computed on imbalanced data · B. High accuracy can be achieved by always predicting the majority class, hiding poor minority-class performance · C. Accuracy only applies to regression · D. Accuracy requires labeled data
+
+<details><summary>Answer</summary>
+
+**B.** On imbalanced data, a trivial "always majority" model scores high accuracy while failing the class that matters. Use precision/recall/F1 instead.
+</details>
+
+**29.** Which scenario is the best fit for **asynchronous** inference on SageMaker?
+
+A. Sub-millisecond responses for an ad-bidding system · B. Processing large documents that each take several minutes, with large payloads · C. A one-time nightly scoring of 50 million rows · D. Occasional requests with long idle gaps where cost must be minimized
+
+<details><summary>Answer</summary>
+
+**B.** Async inference queues requests and suits large payloads and long (minutes-scale) processing. A is real-time, C is batch, D is serverless.
+</details>
+
+**30.** A company wants recommendations like "customers who bought this also bought" updated in real time. Which managed service is purpose-built for this?
+
+A. Amazon Forecast · B. Amazon Personalize · C. Amazon Comprehend · D. Amazon Kendra
+
+<details><summary>Answer</summary>
+
+**B — Amazon Personalize.** Real-time personalized recommendations. Kendra is enterprise search; Comprehend is NLP; Forecast is time-series forecasting.
+</details>
+
+**31.** Which statement about **training** vs. **inference** cost/frequency is generally correct?
+
+A. Training is cheap and continuous; inference is expensive and rare · B. Training is compute-intensive and periodic; inference is comparatively lighter and frequent · C. Both are equally expensive and run continuously · D. Inference must be re-run every time to update model weights
+
+<details><summary>Answer</summary>
+
+**B.** Training learns parameters (heavy, periodic). Inference applies the trained model to new inputs (lighter, runs constantly). Inference does not change weights.
+</details>
+
+**32.** A healthcare startup needs a general-purpose model to summarize clinical notes but has very little labeled training data. Which approach is most appropriate?
+
+A. Train a model from scratch · B. Use a foundation model with prompting/RAG · C. Build a rule-based system · D. Use k-means clustering
+
+<details><summary>Answer</summary>
+
+**B.** With little labeled data and an open-ended language task (summarization), a foundation model accessed via prompting or RAG is the practical choice.
+</details>
+
+**33.** Which AWS service would you use to build, train, and deploy a **custom** ML model with full control over the training process?
+
+A. Amazon Rekognition · B. Amazon Comprehend · C. Amazon SageMaker AI · D. Amazon Textract
+
+<details><summary>Answer</summary>
+
+**C — Amazon SageMaker AI.** It's the end-to-end platform for custom models. The others are pre-built managed AI services for specific tasks.
+</details>
+
+**34.** A retailer must produce an exact, auditable calculation of each customer's loyalty-points balance. What should they use?
+
+A. A regression model · B. A classification model · C. Deterministic business logic (code), not ML · D. A foundation model
+
+<details><summary>Answer</summary>
+
+**C.** Exact, rule-defined, auditable results call for deterministic code. ML produces probabilistic predictions, not guaranteed exact answers.
+</details>
+
+**35.** In the ML lifecycle, which stage typically consumes the **largest** share of effort?
+
+A. Model deployment · B. Data collection and preprocessing · C. Business goal identification · D. Monitoring
+
+<details><summary>Answer</summary>
+
+**B.** Data collection, cleaning, and preparation usually dominate the effort in real ML projects.
+</details>
+
+**36.** What is the primary purpose of **MLOps**?
+
+A. To eliminate the need for data preprocessing · B. To make ML workflows repeatable, scalable, and production-ready while managing technical debt · C. To replace data scientists with automation · D. To guarantee 100% model accuracy
+
+<details><summary>Answer</summary>
+
+**B.** MLOps applies DevOps discipline (versioning, CI/CD, monitoring, retraining) to control technical debt and reach production readiness.
+</details>
+
+**37.** A GenAI application is built by accessing foundation models through a fully managed API with pay-per-token pricing and no servers to manage. This is an example of which deployment method?
+
+A. Self-hosted API on EC2 · B. Managed API service · C. On-premises inference · D. Edge deployment
+
+<details><summary>Answer</summary>
+
+**B — Managed API service** (e.g., Amazon Bedrock). No infrastructure to manage; pay per request/token.
+</details>
+
+**38.** Which is the best example of using AI/ML to **assist human decision making** rather than fully automate it?
+
+A. Auto-rejecting all loan applications below a score · B. A radiologist reviewing an AI-flagged region on a scan before diagnosing · C. A scheduled batch job that deletes old files · D. A fixed rule that blocks logins after 3 failures
+
+<details><summary>Answer</summary>
+
+**B.** The model surfaces insight (a flagged region) and a human makes the final call — decision support, not full automation. C and D are deterministic rules, not ML.
+</details>
+
+**39.** A company uses a model whose live accuracy drops after a competitor changes the market, shifting the input data distribution. What is this phenomenon called?
+
+A. Overfitting · B. Data (concept) drift · C. Underfitting · D. Data leakage
+
+<details><summary>Answer</summary>
+
+**B — Data/concept drift.** The production data no longer matches the training distribution. Response: monitor and retrain on recent data.
+</details>
+
+**40.** Which of the following is an example of **structured (tabular)** data?
+
+A. A folder of scanned contracts · B. A table of customers with columns for age, income, and region · C. A collection of podcast audio files · D. A set of product photos
+
+<details><summary>Answer</summary>
+
+**B.** Rows and columns with defined fields = structured/tabular. The others are unstructured.
+</details>
+
+**41.** Which AWS service extracts printed and handwritten text, tables, and form fields from scanned documents?
+
+A. Amazon Comprehend · B. Amazon Textract · C. Amazon Translate · D. Amazon Kendra
+
+<details><summary>Answer</summary>
+
+**B — Amazon Textract.** OCR plus structure (tables/forms). Comprehend analyzes text meaning; Kendra searches; Translate localizes.
+</details>
+
+**42.** A team needs natural-language search across thousands of internal wiki pages and PDFs so employees can ask questions and get relevant passages. Which service fits best?
+
+A. Amazon Kendra · B. Amazon Polly · C. Amazon Rekognition · D. Amazon Forecast
+
+<details><summary>Answer</summary>
+
+**A — Amazon Kendra.** Intelligent enterprise search over documents (a knowledge-base use case).
+</details>
+
+### Multiple response (choose all that apply)
+
+**43.** Which two are characteristics of **overfitting**? (Choose two.)
+
+A. High training accuracy · B. Low training accuracy · C. Poor generalization to unseen data · D. High bias · E. It is fixed by adding more model complexity
+
+<details><summary>Answer</summary>
+
+**A and C.** Overfitting = high training accuracy but poor performance on new data (high variance). Adding complexity makes it worse; the fixes are more data, regularization, simpler models, early stopping.
+</details>
+
+**44.** Which two are valid reasons to choose a **foundation model** over a traditional ML model? (Choose two.)
+
+A. You need decision-by-decision explainability for regulators · B. The task is open-ended text generation · C. You have little task-specific labeled data · D. You need the lowest possible latency and compute cost · E. The output must be exact and deterministic
+
+<details><summary>Answer</summary>
+
+**B and C.** FMs excel at open-ended generation and work with little labeled data via prompting/RAG. A, D, and E favor traditional models or plain code.
+</details>
+
+**45.** Which two tasks are best solved with **supervised learning**? (Choose two.)
+
+A. Predicting tomorrow's temperature from historical labeled weather data · B. Grouping unlabeled news articles by topic · C. Classifying emails as spam or not spam · D. Detecting previously unseen anomalies with no labels · E. Segmenting customers with no predefined groups
+
+<details><summary>Answer</summary>
+
+**A and C.** Both use labeled data to predict a value/label. B, D, and E are unsupervised.
+</details>
+
+**46.** Which two AWS services are primarily for **natural language processing / language tasks**? (Choose two.)
+
+A. Amazon Comprehend · B. Amazon Rekognition · C. Amazon Translate · D. Amazon Personalize · E. Amazon Forecast
+
+<details><summary>Answer</summary>
+
+**A and C.** Comprehend (sentiment/entities/PII) and Translate (language translation) are NLP/language services. Rekognition is vision; Personalize is recommendations; Forecast is time-series.
+</details>
+
+**47.** Which two are **model performance** metrics for classification? (Choose two.)
+
+A. F1 score · B. Cost per inference · C. Recall · D. Return on investment · E. Time to market
+
+<details><summary>Answer</summary>
+
+**A and C.** F1 and recall measure model performance. The others are business metrics.
+</details>
+
+**48.** Which two conditions suggest AI/ML is a **good fit** for a problem? (Choose two.)
+
+A. The pattern is complex and hard to express as fixed rules · B. A single deterministic correct answer is legally required · C. Large volumes of relevant historical data exist · D. A simple threshold rule already solves it · E. No labeled or usable data is available
+
+<details><summary>Answer</summary>
+
+**A and C.** Complex patterns plus ample relevant data favor ML. B, D, and E argue against it.
+</details>
+
+### Ordering
+
+**49.** Order these steps of a typical supervised ML workflow from first to last:
+*Model evaluation · Data labeling · Feature engineering · Model training · Data collection*
+
+<details><summary>Answer</summary>
+
+1. Data collection
+2. Data labeling
+3. Feature engineering
+4. Model training
+5. Model evaluation
+</details>
+
+**50.** A model is being customized. Order these from **least to most** data and compute required:
+*Fine-tuning · Training from scratch · Prompt engineering · Continued pre-training*
+
+<details><summary>Answer</summary>
+
+1. Prompt engineering
+2. Fine-tuning
+3. Continued pre-training
+4. Training from scratch
+</details>
+
+### Matching
+
+**51.** Match each learning type to its example:
+
+| # | Learning type |
+|---|---|
+| a | Supervised |
+| b | Unsupervised |
+| c | Reinforcement |
+| d | Self-supervised |
+
+| Example |
+|---|
+| 1. An LLM pre-trained by predicting the next word in text |
+| 2. Predicting house price from labeled sales records |
+| 3. Grouping customers into segments with no labels |
+| 4. An agent learning to play a game via rewards |
+
+<details><summary>Answer</summary>
+
+a → 2 · b → 3 · c → 4 · d → 1
+</details>
+
+**52.** Match each metric to what it best measures:
+
+| # | Metric |
+|---|---|
+| a | Precision |
+| b | Recall |
+| c | Accuracy |
+| d | F1 score |
+
+| Meaning |
+|---|
+| 1. Overall fraction of correct predictions (misleading on imbalanced data) |
+| 2. Of all actual positives, how many were caught |
+| 3. Harmonic mean balancing precision and recall |
+| 4. Of all predicted positives, how many were correct |
+
+<details><summary>Answer</summary>
+
+a → 4 · b → 2 · c → 1 · d → 3
+</details>
+
+**53.** Match each business need to the correct **inference type**:
+
+| # | Need |
+|---|---|
+| a | Steady traffic needing millisecond responses |
+| b | Nightly scoring of a huge dataset, no rush |
+| c | Spiky, intermittent traffic; pay only when used |
+| d | Large payloads needing minutes of processing |
+
+<details><summary>Answer</summary>
+
+a → **Real-time** · b → **Batch** · c → **Serverless** · d → **Asynchronous**
+</details>
+
+**54.** Match each AWS service to its primary purpose:
+
+| # | Service |
+|---|---|
+| a | Amazon Bedrock |
+| b | Amazon SageMaker AI |
+| c | Amazon Rekognition |
+| d | Amazon Transcribe |
+
+| Purpose |
+|---|
+| 1. Analyze images/video for objects, faces, moderation |
+| 2. Managed access to foundation models (GenAI) |
+| 3. Convert speech to text |
+| 4. Build, train, and deploy custom ML models |
+
+<details><summary>Answer</summary>
+
+a → 2 · b → 4 · c → 1 · d → 3
+</details>
+
+---
+
 ## Quick Revision Checklist
 
 - [ ] AI ⊃ ML ⊃ deep learning ⊃ GenAI; **agentic AI = planning + tool use**
