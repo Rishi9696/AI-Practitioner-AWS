@@ -62,6 +62,131 @@ The **procedure used to produce a model** from data. The algorithm is the method
 
 *Tuning* hyperparameters is out of scope for this exam, but recognizing what they are is not. **SageMaker Automatic Model Tuning (AMT)** does it for you via grid or random search.
 
+---
+
+#### Batch size and epochs explained properly
+
+These two are constantly confused, so it's worth slowing down.
+
+**Batch size = how many training examples the model looks at before it updates its weights once.**
+
+Training doesn't update the weights after every single example, and it doesn't wait until it has seen all 100,000 either. It works in chunks:
+
+```
+Dataset: 10,000 images, batch size = 100
+
+images 1–100    → predict → measure error → update weights   (step 1)
+images 101–200  → predict → measure error → update weights   (step 2)
+...
+100 batches later = every image seen once = 1 EPOCH
+```
+
+**Epoch = one complete pass through the entire training dataset.**
+
+So batch size controls *how big each bite is*; epochs control *how many times you eat the whole meal.*
+
+**Why more than one epoch?** The model doesn't learn everything from seeing an example once. On pass one the weights are near-random, so it's picking up only crude patterns. By pass ten it has refined them considerably. Each epoch reshuffles the data and lets the model correct itself further — like re-reading a textbook chapter and catching more detail each time.
+
+**The tradeoffs — this is what gets tested:**
+
+| Hyperparameter | Too low | Too high |
+|---|---|---|
+| **Batch size** | Each update is based on little evidence, so steps are noisy and jump around — but frequent small corrections converge reliably. Many more steps, so **slower to compute**. | Each update averages over many examples, so it's **faster overall** (better hardware use, fewer steps) and needs far more memory — but averaging can smooth away useful signal, giving **less stable updates**. |
+| **Epochs** | **Underfitting** — the model hasn't seen the data enough times to learn the pattern. The student who skimmed the chapter once. | **Overfitting** — the model has seen the same examples so often it memorizes their quirks and noise instead of the general pattern. The student who memorized one practice paper and is lost on the real exam. |
+
+*AWS phrasing to remember:* smaller batches → more stable learning but slower to compute; larger batches → faster but potentially less stable updates.
+
+**Why early stopping works.** Watch validation performance each epoch. It improves for a while, plateaus, then starts *falling* even while training performance keeps climbing. That turning point is where memorization begins — early stopping halts training right there.
+
+```
+Epoch:        1     5    10    15    20    25
+Training:    60%   78%   88%   93%   97%   99%   ← keeps rising
+Validation:  58%   76%   85%   87%   84%   79%   ← peaks, then falls
+                                ↑
+                        stop here (early stopping)
+```
+
+**How the three main hyperparameters fit together:**
+
+| Hyperparameter | The question it answers |
+|---|---|
+| **Learning rate** | How *big* a step to take when updating weights |
+| **Batch size** | How much *evidence* backs each step |
+| **Epochs** | How many *rounds* of stepping you do |
+
+**Don't confuse "batch" across three different exam contexts:**
+
+| Term | What it is | Where it appears |
+|---|---|---|
+| **Batch size** | Training hyperparameter — examples per weight update | Domain 1, with learning rate and epochs |
+| **Batch inference / Batch Transform** | A *deployment* mode — score a large dataset all at once, no live endpoint | Domain 1, inference types |
+| **Bedrock Batch pricing** | A *pricing* mode — submit many prompts offline for up to 50% off | Domain 2 |
+
+Same word, three unrelated concepts. Only batch size is about training.
+
+---
+
+#### Regularization explained properly
+
+**Regularization is a penalty added during training that discourages the model from becoming too complex.** Its entire purpose is to **prevent overfitting**.
+
+**The problem it solves.** Left alone, training has one goal: minimize error on the training data. The model will happily contort itself into an absurdly complicated shape to nail every last training point — including the noise. That's overfitting.
+
+Regularization changes what the model is optimizing. Instead of just:
+
+```
+minimize:  prediction error
+```
+
+it becomes:
+
+```
+minimize:  prediction error  +  (penalty × how complex the model is)
+```
+
+Now complexity has a *cost*. The model will only adopt a more elaborate pattern if that pattern reduces error enough to be worth the penalty it incurs. Weak, noise-chasing patterns no longer pay for themselves, so the model drops them and settles on something simpler that generalizes better.
+
+**An analogy:** imagine paying a consultant per rule they write. Without the fee, they hand you 500 hyper-specific rules covering every past case ("if the customer is 34, lives in Pune, and bought on a Tuesday…"). Charge them per rule and they'll give you the 12 rules that genuinely matter. Same effect — the cost forces them to keep only what's actually useful.
+
+**Visually:**
+
+```
+No regularization          Right amount            Too much
+    ╱╲  ╱╲╱╲                                   
+   ╱  ╲╱      ╲              ╱‾‾‾╲              ─────────
+  ╱ wiggles through         ╱ smooth curve       flat line,
+  every single point ╲     ╱  through the        misses the
+                      ╲   ╱   real trend         pattern entirely
+   → OVERFITTING            → GOOD FIT           → UNDERFITTING
+```
+
+**The key exam relationship — and the direction matters:**
+
+| Situation | What to do with regularization |
+|---|---|
+| Model is **overfitting** (great on training, poor on test) | **Increase** regularization |
+| Model is **underfitting** (poor on both) | **Decrease** regularization |
+
+*"Adjusting the balance between a simple and a complex model. Increase regularization to reduce overfitting."*
+
+Note that regularization is a **dial, not a switch** — too much of it swings you from overfitting straight into underfitting, because you've penalized complexity so heavily that the model can no longer represent the real pattern.
+
+**Where it sits among the overfitting fixes.** Regularization is one of several tools, and the exam may offer any of them:
+
+| Fix | How it works |
+|---|---|
+| **Increase regularization** | Penalize complexity so the model stops chasing noise |
+| More training data | Noise averages out; real patterns stand out |
+| Early stopping | Halt before memorization begins |
+| Data augmentation | Generate more varied examples |
+| Simpler model | Fewer parameters to overfit with |
+| Feature selection | Fewer, more meaningful inputs |
+| Ensembling | Combine models so individual quirks cancel out |
+
+*You don't need the mathematics for this exam* — L1 (Lasso) and L2 (Ridge) are the two common forms, where L1 can shrink unhelpful feature weights to exactly zero (effectively removing them) and L2 shrinks all weights toward zero without eliminating them. Recognizing the names is enough; the concept is what's tested.
+
+---
+
 **Training**
 Feeding data to an algorithm so it learns the parameters that best map inputs to correct outputs. The model predicts, compares to the known answer, measures the error, and adjusts weights to reduce it — repeated many times. Training is **computationally expensive, slow, and done occasionally**.
 
@@ -556,7 +681,43 @@ A. Increase regularization · B. Increase the number of epochs · C. Use early s
 **A and C.** More regularization penalizes complexity, and early stopping halts training before the model starts memorizing noise. Training for *more* epochs worsens overfitting.
 </details>
 
-**18.** A manufacturer needs image-based defect detection on factory-floor devices with unreliable internet. What is the appropriate approach?
+**18.** A dataset has 50,000 examples and the batch size is 500. How many weight updates occur in one epoch?
+
+A. 500 · B. 100 · C. 50,000 · D. 1
+
+<details><summary>Answer</summary>
+
+**B — 100.** 50,000 ÷ 500 = 100 batches, and the weights update once per batch. One epoch = one complete pass through the dataset.
+</details>
+
+**19.** A model's training accuracy keeps rising while its validation accuracy peaked at epoch 12 and has been falling since. What is happening and what should be done?
+
+A. Underfitting; train for more epochs · B. Overfitting; apply early stopping around epoch 12 · C. High bias; reduce regularization · D. Data drift; collect new data
+
+<details><summary>Answer</summary>
+
+**B — Overfitting, addressed with early stopping.** The divergence between rising training accuracy and falling validation accuracy is the signature of the model beginning to memorize noise.
+</details>
+
+**20.** A model performs excellently on training data but poorly on test data. Which hyperparameter change is appropriate?
+
+A. Decrease regularization · B. Increase regularization · C. Increase the number of epochs · D. Increase the learning rate
+
+<details><summary>Answer</summary>
+
+**B — Increase regularization.** Regularization penalizes complexity, discouraging the model from fitting noise. Decreasing it would worsen overfitting, and more epochs would too.
+</details>
+
+**21.** What happens if regularization is set too high?
+
+A. The model overfits more severely · B. The model underfits — it becomes too simple to capture the real pattern · C. Training becomes non-deterministic · D. Inference latency increases
+
+<details><summary>Answer</summary>
+
+**B — Underfitting.** Regularization is a dial, not a switch: excessive penalty on complexity prevents the model from representing the genuine pattern, swinging it from overfitting into underfitting.
+</details>
+
+**22.** A manufacturer needs image-based defect detection on factory-floor devices with unreliable internet. What is the appropriate approach?
 
 A. A large model on a real-time cloud endpoint · B. A small model deployed for inference at the edge · C. Batch transform in the cloud overnight · D. Serverless inference
 
@@ -571,7 +732,11 @@ A. A large model on a real-time cloud endpoint · B. A small model deployed for 
 
 - [ ] AI ⊃ ML ⊃ DL ⊃ GenAI; rule-based systems (MYCIN) are AI but not ML
 - [ ] ML predicts · GenAI creates · agentic AI acts
-- [ ] Model vs. algorithm; parameters vs. hyperparameters (learning rate, batch size, epochs, regularization)
+- [ ] Model vs. algorithm; parameters vs. hyperparameters
+- [ ] **Batch size** = examples per weight update · **Epoch** = one full pass · **Learning rate** = step size · **Regularization** = complexity penalty
+- [ ] Too few epochs → underfitting; too many → overfitting; early stopping catches the turning point
+- [ ] Overfitting → **increase** regularization. Underfitting → **decrease** it
+- [ ] Batch size ≠ batch inference ≠ Bedrock batch pricing
 - [ ] Train / validation / test split ≈ 80 / 10 / 10
 - [ ] Feature engineering: extraction, selection, transformation
 - [ ] Overfitting (high variance) vs. underfitting (high bias) and every fix for each
