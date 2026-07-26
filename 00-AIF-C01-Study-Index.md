@@ -21,6 +21,8 @@
 
 Domains 2 + 3 are **52% of the exam** — spend your time there. Every practice question sits in the domain it belongs to.
 
+**Beyond the exam (interview/practical depth):** [RAG-Reranking-Deep-Dive.md](RAG-Reranking-Deep-Dive.md) — bi-encoder vs. cross-encoder, reranking technique families (cross-encoder, LLM pointwise/pairwise/listwise, RankGPT, ColBERT/MaxSim, RRF, BGE-reranker, LTR), and a working RAG pipeline with code. Not tested on AIF-C01, but builds on Domain-2.1/3's RAG and transformer-architecture sections.
+
 ---
 
 ## Cross-domain decision rules (the highest-yield page)

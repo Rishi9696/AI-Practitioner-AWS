@@ -92,6 +92,75 @@ Chunk size and boundaries directly affect what gets retrieved, so this is a real
 - **Self-attention** lets every token weigh its relationship to **every other token simultaneously**. Example: "The trophy didn't fit in the suitcase because **it** was too big" — self-attention computes how strongly "it" relates to "trophy" vs. "suitcase" to resolve the reference.
 - Because all these token-to-token comparisons happen **in parallel** (not sequentially like RNNs), they can be computed efficiently on GPUs — this parallelism is what allowed transformers to scale to billions of parameters.
 
+### Three transformer architecture families — encoder-only, decoder-only, encoder-decoder
+
+Every transformer-based model falls into one of three families, by which half of the original transformer (encoder, decoder, or both) it keeps. This determines what the model is *for*, not just how it's built.
+
+```
+                 TRANSFORMER
+                      │
+          ┌───────────┼───────────┐
+          ▼           ▼           ▼
+      ENCODER      DECODER    ENCODER-DECODER
+       ONLY         ONLY
+          │           │           │
+     Understand    Generate    Understand + Generate
+          │           │           │
+        BERT          GPT         T5 / FLAN-T5 / BART
+```
+
+**1. Encoder-only — "understand this."**
+Reads input and produces a representation (a vector/embedding); it does not generate long new text.
+Examples: BERT, RoBERTa, DistilBERT.
+Used for: text classification, sentiment analysis, NER, semantic search embeddings, **re-ranking** (see re-ranking notes above — cross-encoders for re-ranking are typically encoder-only models).
+Example: `"I love this phone" → BERT → Positive` or `"How many leaves are allowed?" → BERT embedding → vector`.
+**Role in RAG:** produces the chunk/query embeddings, and can power the re-ranking stage — but does not write the final natural-language answer.
+
+**2. Decoder-only — "generate something."**
+Reads a prompt and predicts the next token, repeatedly, feeding each generated token back in (autoregressive — see below).
+Examples: GPT models, Llama, Mistral, Claude-style models, Qwen.
+Used for: chatbots, RAG answer generation, code generation, agents, tool calling.
+Example: `"Explain RAG" → decoder-only LLM → "RAG stands for Retrieval-Augmented Generation..."` generated token-by-token: RAG → stands → for → Retrieval → ...
+**Role in RAG:** this is the generation model in most modern RAG stacks — takes `question + retrieved context → answer`.
+
+**3. Encoder-decoder — "understand this, then generate something based on it."**
+The encoder builds a contextual representation of the input; the decoder generates output conditioned on that representation. Naturally suited to sequence-to-sequence (seq2seq) tasks where input and output are different texts of a related kind.
+Examples: T5, FLAN-T5, BART.
+Used for: translation, summarization, question answering, text-to-text transformation.
+Example: `"I love AI" → Encoder (understands) → Decoder (generates) → "J'aime l'IA"`.
+**Role in RAG:** can also serve as the generation model — `question + retrieved context → Encoder → Decoder → answer` (e.g., FLAN-T5 given "Context: Employees receive 20 days of paid leave per year. Question: How many paid leaves?" → "Employees receive 20 days of paid leave per year."). Smaller, specializable, good for text-to-text pipelines that can run locally.
+
+| Architecture | Main job | Examples | Common uses |
+|---|---|---|---|
+| Encoder-only | Understand | BERT, RoBERTa | Classification, embeddings, search, re-ranking |
+| Decoder-only | Generate | GPT, Llama, Mistral | Chat, RAG generation, agents, code |
+| Encoder-Decoder | Understand + Generate | T5, BART, FLAN-T5 | Translation, summarization, RAG generation, seq2seq |
+
+**RAG is retrieval + a generation model — the generation model can be either family:**
+
+```
+Documents → Chunk → Embed → Vector DB → Retrieve Top-K
+                                            ↓
+                                 Question + Context
+                                            ↓
+                        ┌───────────────────┴───────────────────┐
+                        ▼                                       ▼
+              Encoder-Decoder (T5/FLAN-T5)              Decoder-only (GPT/Llama)
+              Encoder reads Q+context,                  Reads Q+context as one prompt,
+              Decoder generates answer                  generates answer token-by-token
+                        └───────────────────┬───────────────────┘
+                                            ▼
+                                         Answer
+```
+
+Why most production RAG defaults to decoder-only: better instruction-following, longer coherent generation, native tool calling, multi-turn conversation, and agentic workflows — encoder-decoder models (T5-family) remain a strong, often smaller/cheaper choice specifically for tight seq2seq tasks (translation, summarization, focused extractive QA).
+
+**Important nuance:** "Encoder-Decoder" and "Decoder-only" are architectures; "LLM" is a category describing scale/capability, not a separate thing you add on top. T5 *is* the model doing the work — encoder and decoder together — no separate LLM required. An embedding model may use a transformer encoder internally, but is specifically trained to output useful embeddings rather than acting as a general-purpose classifier like BERT.
+
+**Interview-ready answer:** "Yes, encoder-decoder transformers can be used in RAG. After retrieving relevant chunks from the vector database, I pass the question and retrieved context into an encoder-decoder model like T5 or FLAN-T5 — the encoder processes the context and question, and the decoder generates the answer. That said, modern production RAG systems more often use decoder-only LLMs like GPT or Llama, since they're more flexible for instruction-following, long-form generation, tool calling, and agentic workflows. Encoder-decoder shines specifically for seq2seq tasks — translation, summarization, and constrained text-to-text generation."
+
+---
+
 ### Why LLMs are called "autoregressive"
 
 "Auto" = self, "regressive" = depending on previous values — borrowed from statistics, where an autoregressive model predicts the next value in a sequence from previous values in that same sequence.
@@ -160,6 +229,63 @@ At each generation step, the model computes a probability distribution over its 
 - **Bad example:** dumping an entire 50-page policy PDF + 6 months of chat history + every tool definition into a prompt for a simple refund question → wastes tokens, and can actually cause **hallucinations** (irrelevant text drowns the useful signal, model blends unrelated details into a plausible-but-wrong answer).
 - **Good example:** retrieve only the 2–3 relevant policy chunks (via RAG), include only recent relevant conversation turns, a short targeted system instruction, and only the tool definitions relevant to this query.
 - **Failure mode to recognize:** a long conversation that "loses track" or contradicts itself is usually a **context engineering problem** (relevant earlier content got pushed out or was poorly organized), not a model-intelligence problem. Fixes: summarization/compaction of older turns, long-term memory for persisted facts across sessions, or retrieval over chat history instead of replaying the whole transcript — a bigger context window alone is a band-aid, not a fix.
+
+### Tokenization mechanics — encoding, decoding, BPE, cl100k_base, tiktoken
+
+**Why numeric IDs exist at all:** a model is pure matrix math — it cannot compute on the letters "b-o-s-s." Every input must become a number first. A **token ID** is that number, produced by looking a token up in a fixed vocabulary (dictionary).
+
+```
+ENCODING (text → numbers)
+"the boss"  →  [" the", " boss"]  →  [279, 11351]  →  fed into the model
+  raw text      BPE tokens          token IDs
+
+DECODING (numbers → text) — the exact reverse, same dictionary
+[279, 11351]  →  [" the", " boss"]  →  "the boss"
+ model output      tokens looked up     joined back into text
+```
+
+- **BPE (Byte Pair Encoding)** — the *algorithm* that builds the vocabulary. Starting from individual characters, it repeatedly merges the most frequent adjacent pair across a huge training corpus (e.g. "l"+"o" → "lo", then "lo"+"w" → "low") until it has ~100k reusable subword pieces. Common words end up as one token; rare/made-up words stay split into pieces ("unbelievable" → "un" + "believ" + "able").
+- **`cl100k_base`** — a specific trained *vocabulary* (dictionary) produced by running BPE on OpenAI's training data. Different model families use different encodings (`cl100k_base` for GPT-3.5/GPT-4/`text-embedding-3-small`; `o200k_base` for GPT-4o).
+- **`tiktoken`** — OpenAI's library that actually applies a given encoding (e.g. `cl100k_base`) to text: `encode()` does text → token IDs, `decode()` does token IDs → text.
+- **Reversibility:** token ID ↔ text is a fixed dictionary lookup, so it is always exactly reversible. This is *not* true of embedding vectors (next section) — that's the key distinction to keep straight for the exam.
+
+### Vector database storage & retrieval — it's a lookup, not a "decode"
+
+A vector DB record stores **three things together**, not just the vector:
+
+```
+{ id: "chunk_1",
+  vector: [0.021, -0.18, ..., 0.009],   ← 1536 numbers, for similarity search only
+  metadata: { text: "I am the boss." } }  ← original text, stored as-is, never discarded
+```
+
+Retrieval flow:
+
+```
+user query → embed query → cosine-similarity search against all stored vectors
+           → find closest vector's id → read back its stored metadata.text
+```
+
+There is no mathematical "decoding" of a vector into text — no dictionary exists for that direction. The system simply keeps the plain text sitting next to its vector and fetches it once similarity search identifies the best-matching id. (Contrast with tokenization above, which *is* genuinely reversible.)
+
+### Context assembly & ordering, function context, relevance filtering/re-ranking
+
+These are the concrete mechanics *inside* context engineering — the discipline; assembly is one instance of executing it.
+
+- **Context assembly** = gathering and combining the specific pieces needed for one request: user query + chat history + RAG chunks + tool results.
+- **Ordering** matters because of the "lost in the middle" effect — models attend most to content at the very start and very end of context, less to content buried in the middle. Standard order: system prompt → retrieved context → chat history → current question (placed last, freshest before generation).
+
+```
+[System prompt: role + rules]
+[Retrieved RAG chunks]
+[Conversation history]
+[Current user question]   ← placed last, right before generation
+```
+
+- **Function / tool context** — when a model can call tools, its context must include the tool's schema (name, params, description), and often prior tool-call results, so it can decide when/how to call it and reason over what came back. Example: supplying `{"name": "get_weather", "params": {"city": "string"}}` lets the model call `get_weather(city="Seattle")` and then use the returned JSON to phrase an answer.
+- **Relevance filtering / re-ranking** — after an initial vector search returns, say, the top 20 chunks by embedding similarity, a second, more precise pass (a cross-encoder or a reranking API like Cohere Rerank) reorders them by true relevance to the query, and only the top 3–5 survive into the prompt. This catches cases where raw embedding similarity doesn't perfectly match what's actually useful, and keeps low-value chunks from wasting tokens or diluting the answer.
+
+**Memory hook:** *Context Engineering* = designing the whole strategy (what to retrieve, how to rank, how to summarize, how to format). *Context Assembly* = building one specific context payload from that strategy for one request. Recipe vs. cooking one meal from it.
 
 ---
 
