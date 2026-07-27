@@ -32,6 +32,8 @@ An LLM predicts **one token at a time**, choosing the next token based on probab
 - **Subword tokenization** splits longer or rarer words into pieces, which keeps the vocabulary manageable.
 *Rule of thumb:* 1 token ≈ 4 characters ≈ ¾ of an English word. 1,000 tokens ≈ 750 words.
 
+*Why subword wins:* word-based tokenization needs a separate vocabulary entry for every distinct word, so the vocabulary explodes and rare/misspelled words become "unknown." Subword keeps common words whole and builds rare ones from reusable fragments, so nothing is ever truly unknown (worst case, a word is spelled out character by character). Modern models (GPT, Claude) use BPE or WordPiece. *Note:* the shared fragment between related words (e.g. "technology" and "pharmacology") is whatever the algorithm **learned from frequency**, not English grammar — it may be "ology," "logy," or a whole-word token, and a leading space counts as part of the token (" technology" ≠ "technology").
+
 **Context window** — the **number of tokens the model can consider at once** (prompt + response). A larger window means more information and better coherence, but requires more memory and processing. AWS calls this the **first factor to look at** when choosing a model. Exceed it and earlier content is dropped.
 
 **Embeddings** — **vectors** (arrays of numbers) created from text, images, or audio. They are high-dimensional so they can capture many features of a single input at once — semantic meaning, syntactic role, sentiment. Words with related meanings end up with similar vectors, which is what makes semantic search and RAG possible: "dog" and "puppy" sit close together, "houses" sits far away.
@@ -130,6 +132,33 @@ Agents also **use RAG** to retrieve information when needed.
 | **Regulatory violations** | Output that breaches sector rules | Governance framework, human review |
 | **Social risks** | Bias, misinformation, and downstream harm | Bias evaluation, diverse data, guardrails |
 
+**Plain-English breakdown:**
+
+- **Hallucinations** — the model states false things confidently (fake citations, invented facts) because it predicts the *next likely token*, not truth. *Fix:* verify against independent sources, label output as unverified, ground with RAG + citations.
+- **Toxicity** — offensive or harmful output; the hard part is *defining* "toxic" (filtering vs. censorship, quoting someone else's toxic words). *Fix:* curate training data, run outputs through guardrail models.
+- **Interpretability** — it's a black box; you can't fully explain *why* it gave an answer. *Fix:* use traditional ML where regulators demand explainability (e.g. loan decisions).
+- **Nondeterminism** — same prompt, different answers. *Fix:* lower temperature; avoid gen-AI where exact repeatability is required.
+- **Plagiarism / cheating** — AI-written essays and assignments passed off as human, hard to trace to a source. *Fix:* detection tooling (unreliable) plus policy.
+- **Data security & privacy** — sensitive data typed into prompts can leak. *Fix:* encryption, PII filtering, guardrails, access control.
+- **Regulatory violations** — output that breaks sector rules (finance, healthcare). *Fix:* governance framework + human review.
+- **Social risks** — bias/discrimination, misinformation at scale, deepfakes, job displacement, environmental cost of training. *Fix:* bias testing, diverse data, transparency, human oversight.
+
+*Through-line for the exam:* gen-AI is powerful but **not inherently trustworthy** — the standard answer to almost every risk is some mix of **guardrails, human review, data curation, and governance**.
+
+#### Two terms worth pinning down
+
+**PII (Personally Identifiable Information)** — *not* a library or code, just the name for any data that identifies a specific person: name, email, phone, home address, SSN / Aadhaar, passport or credit-card number, date of birth, IP address, biometrics. It's a privacy/compliance concept (GDPR, HIPAA).
+
+**PII filtering** — automatically detecting and masking that sensitive data so it doesn't leak or get stored/logged. Two directions:
+- *On the way in* — a user pastes "my card is 4111 1111 1111 1111" → filter masks it to `[REDACTED]` before it reaches or is logged by the model.
+- *On the way out* — if a response would echo someone's phone or email, it's caught before the user sees it.
+
+In AWS, **Amazon Bedrock Guardrails** does this automatically — you don't write the filter yourself.
+
+**Social risks vs. privacy — the distinction to hold:**
+- **PII / privacy** = protecting an *individual's* data.
+- **Social risks** = harm to *society as a whole*: bias & discrimination (unfair patterns learned from data), misinformation/disinformation at scale, deepfakes (fake image/video/voice), job displacement, and the environmental cost of training large models. *Mitigations:* bias testing, diverse/curated data, transparency, guardrails, human oversight.
+
 ### Choosing a model — selection factors
 
 Model type and **modality** (text / image / multimodal) · performance requirements · capabilities · constraints · **compliance** · level of customization supported · model size · inference options · **licensing agreements** · **context window** · **latency** · cost.
@@ -205,6 +234,17 @@ AWS's family of FMs, accessible through Bedrock: fast, cost-effective, enterpris
 ### Cost tradeoffs to reason about
 
 More capable model → better quality, higher cost and latency. **Batch** → up to 50% cheaper but not immediate. **Provisioned Throughput** → predictable performance, but you pay for reserved capacity. **Custom/fine-tuned models** → better task fit, but training cost plus more expensive hosting. **Multi-region redundancy** → higher availability, higher cost. **Larger RAG context** → more grounded answers, more tokens billed.
+
+**Plain-English — each choice, what you gain vs. what it costs:**
+
+- **More capable model** — a bigger/smarter model (Nova Premier vs. Micro) gives better answers but costs more per token and is slower. Right-size to the task; don't default to the biggest.
+- **Batch** — processes many requests together, results written to S3, up to 50% cheaper. Catch: *not* real-time. Great for bulk offline jobs (summarize 10,000 docs overnight), useless for a live chatbot.
+- **Provisioned Throughput** — buy dedicated model units for a term (1 or 6 months) for guaranteed tokens/minute and consistent speed; **required to host custom models**. You pay for reserved capacity whether or not you use it — it guarantees performance, it doesn't save money.
+- **Custom / fine-tuned models** — better fit to your task, but you pay twice: training cost up front, plus higher ongoing hosting (custom models run on Provisioned Throughput).
+- **Multi-region redundancy** — survives a regional outage and serves users faster globally, but you pay for duplicated infrastructure.
+- **Larger RAG context** — more retrieved documents = more grounding and fewer hallucinations, but every retrieved token is billed and it eats into the context-window limit.
+
+*Unifying exam idea:* **no free lunch** — every quality/speed/reliability gain has a cost, so the "right" answer is usually the **cheapest option that still meets the requirement**, not the most powerful one.
 
 ---
 

@@ -27,6 +27,68 @@ Model type · performance requirements · capabilities · constraints · **compl
 *Classic exam question:* "Responses are too random and inconsistent" → **lower the temperature.**
 *And remember:* none of temperature, Top P, or Top K affects **price or latency**.
 
+#### Top K and Top P explained properly
+
+These two are constantly confused, so it's worth understanding the mechanism rather than memorizing the table.
+
+**The starting point.** At every step, an LLM doesn't pick a word — it produces a **probability distribution over the entire vocabulary** (~50,000+ tokens). For the prompt *"The weather today is…"* it might output:
+
+```
+sunny    40%
+cloudy   25%
+warm     15%
+cold     10%
+rainy     5%
+purple  0.01%
+...  (50,000 more tokens, each near zero)
+```
+
+Something must then **narrow that list** before a token is sampled, or the model will occasionally pick "purple" and the sentence falls apart. Top K and Top P are two different ways of doing the narrowing.
+
+**Top K — cut by count.** Keep the **K most likely tokens**, discard everything else, sample from what remains.
+
+```
+Top K = 3  →  keep [sunny, cloudy, warm]        → sample from these 3
+Top K = 5  →  keep [sunny, cloudy, warm, cold, rainy]
+```
+
+Simple and predictable. Its weakness: **K is fixed regardless of how confident the model is.** If the model is 99% sure the next word is "Paris," Top K = 50 still drags in 49 bad candidates. If the model is genuinely uncertain across 200 reasonable options, Top K = 5 cuts off good ones.
+
+**Top P (nucleus sampling) — cut by cumulative probability.** Sort tokens by probability, then keep adding them until their probabilities **sum to P**. Sample from that set.
+
+```
+Top P = 0.80  →  sunny (40%) + cloudy (25%) + warm (15%) = 80%  → keep 3 tokens
+Top P = 0.90  →  ... + cold (10%)                        = 90%  → keep 4 tokens
+```
+
+The key property: **the size of the candidate pool adapts to the model's confidence.** When the model is sure, one or two tokens already reach P, so the pool stays tiny and the output stays on-rails. When the model is genuinely uncertain, probability is spread thin and it takes many tokens to reach P, so the pool widens automatically. This is why Top P is generally preferred over Top K in practice.
+
+| | **Top K** | **Top P** |
+|---|---|---|
+| Cuts by | A fixed **count** of tokens | A cumulative **probability** mass |
+| Pool size | Always K — fixed | **Varies** with the model's confidence |
+| Typical values | 10 = focused · 500 = diverse | 0.25 = focused · 0.99 = diverse |
+| Weakness | Ignores how confident the model is | Slightly less intuitive to reason about |
+| Mnemonic | **K = Kount** | **P = Probability** |
+
+**How this differs from temperature.** Easy to conflate all three, but they act at different points:
+
+> **Temperature reshapes the probabilities. Top K and Top P decide which tokens survive the cut. Then one is sampled.**
+
+Temperature doesn't remove any token — it flattens or sharpens the whole distribution. Low temperature exaggerates the gap between likely and unlikely words (the top token dominates → predictable output); high temperature levels them out (rarer words get a real chance → creative output). Top K/Top P then trim the candidate list before sampling.
+
+*Practical guidance the exam echoes:* **tune one at a time.** Adjusting temperature and Top P together makes the effect impossible to attribute. Most teams fix Top P and move temperature.
+
+**Direction cheat sheet — the answer to nearly every tuning question:**
+
+| Symptom | Fix |
+|---|---|
+| Output too random, inconsistent, off-topic | **Lower** temperature (and/or lower Top P / Top K) |
+| Output too repetitive, bland, always identical | **Raise** temperature (and/or raise Top P / Top K) |
+| Need deterministic, reproducible output (extraction, classification, code) | Temperature ≈ **0**, low Top P |
+| Need varied creative options (marketing copy, brainstorming) | Higher temperature, high Top P |
+| Responses cost too much / get truncated | Adjust **max tokens** — the *only* one of these that affects cost and latency |
+
 ### RAG — Retrieval Augmented Generation
 
 RAG lets a foundation model **reference a data source outside its training data**, grounding it in your own content without retraining.
@@ -108,6 +170,19 @@ An agent uses an FM to reason, breaks a goal into steps, calls APIs and tools, a
 | **Chain-of-thought (CoT)** | Divide the task into a sequence of reasoning steps for more structure and coherence. Adding *"think step by step"* helps. Can be combined with zero-shot or few-shot. | Math, logic, multi-step problems |
 | **RAG** | Augment the prompt with retrieved external information | The model needs facts it doesn't have |
 | **Prompt templates** | Reusable prompts with variables — e.g. `"{{Text}} {{Question}}? Choose from: {{Choice 1}} {{Choice 2}}"`. Standardize prompt generation, orchestrate between the FM, action groups, and knowledge bases, and format responses. Used with Bedrock Agents; can embed few-shot examples. | Production applications |
+
+### Technique examples — quick reference
+
+| Technique | Example |
+|---|---|
+| **Zero-shot** | "Summarize this AWS Well-Architected pillar in 2 sentences: [text]" — no examples given |
+| **Few-shot** | "Review: 'Great service, fast delivery' → Positive. Review: 'Terrible, broke in a day' → Negative. Review: 'It's okay, does the job' → ?" |
+| **Chain-of-thought** | "A store has 120 items. 25% are sold. How many remain? Let's think step by step." → forces 120×0.25=30 sold → 120−30=90, instead of guessing |
+| **System prompt** | System: "You are a concise AWS tutor. Answer in under 100 words." + User: "What is Amazon Bedrock?" |
+| **Role prompting** | "Act as a senior AWS solutions architect. Review this diagram and flag security risks." |
+| **Instruction prompting** | "List the top 5 AWS storage services with one-line descriptions. Numbered list. No intro." |
+| **Negative prompting** | "Explain how neural networks work. Do not use mathematical notation or code." |
+| **Prompt template** | `Summarize the following {document_type} for a {audience} audience in {n} bullet points: {document_text}` |
 
 ### Best practices
 
@@ -379,9 +454,94 @@ A. Storing embeddings · B. Defining the pre-configured tasks/APIs the agent is 
 
 ---
 
+### Inference parameter questions — Top K, Top P, temperature
+
+**17.** A model produces this distribution for the next token: `sunny 40% · cloudy 25% · warm 15% · cold 10% · rainy 5% · breezy 3% · (rest) 2%`. With **Top P = 0.80**, how many tokens are in the candidate pool?
+
+A. 2 · B. 3 · C. 4 · D. 80
+
+<details><summary>Answer</summary>
+
+**B — 3 tokens.** Accumulate from the most likely until the sum reaches 0.80: sunny (0.40) → cloudy (0.65) → warm (0.80). Threshold met, stop. The pool is `[sunny, cloudy, warm]`.
+
+Note that **Top P is not a percentage of the vocabulary** — 0.80 does not mean "80% of the words." It's the cumulative probability mass the pool must cover.
+</details>
+
+**18.** Using the same distribution, what does **Top K = 4** select?
+
+A. Tokens covering 40% probability · B. The four most likely tokens · C. Tokens with probability above 4% · D. Four random tokens
+
+<details><summary>Answer</summary>
+
+**B — the four most likely tokens**: `[sunny, cloudy, warm, cold]`.
+
+Top K counts tokens; Top P sums probabilities. **K = Kount, P = Probability.**
+</details>
+
+**19.** What is the key advantage of Top P over Top K?
+
+A. Top P is faster to compute · B. The candidate pool adapts to how confident the model is at each step · C. Top P reduces token cost · D. Top P prevents hallucination
+
+<details><summary>Answer</summary>
+
+**B — the pool size adapts.** When the model is highly confident, one or two tokens already reach P, so the pool stays small and the output stays coherent. When the model is uncertain, probability is spread across many tokens, so the pool widens automatically.
+
+Top K applies the same fixed count either way — dragging in 49 poor candidates when the model was already 99% certain. Neither parameter affects cost (C) or reliably prevents hallucination (D).
+</details>
+
+**20.** A legal-document extraction application must return **the same output for the same input every time**. Which settings?
+
+A. Temperature 1.0, Top P 0.99 · B. Temperature near 0, low Top P · C. Temperature 0.5, Top K 500 · D. Increase max tokens
+
+<details><summary>Answer</summary>
+
+**B — temperature near 0 with a low Top P.** This collapses the model toward always choosing the single most likely token, which is what extraction, classification, and code generation need.
+
+A and C both maximize diversity — the opposite requirement. D changes only the length cap.
+</details>
+
+**21.** A marketing team says their product-description generator returns nearly identical copy on every run. Which change addresses this?
+
+A. Lower the temperature · B. Reduce Top K to 5 · C. Raise the temperature and Top P · D. Add stop sequences
+
+<details><summary>Answer</summary>
+
+**C — raise temperature and Top P.** Repetitive, bland output is the signature of settings that are too conservative; widening the candidate pool and flattening the distribution introduces variety.
+
+A and B both make it *more* repetitive. Stop sequences only control where generation halts.
+</details>
+
+**22.** A team increases temperature, Top P, and Top K to improve output variety. What is the flaw in their approach?
+
+A. These parameters cannot be changed together · B. Changing all three at once makes the effect impossible to attribute, and it will also increase cost · C. Changing all three at once makes the effect impossible to attribute — tune one at a time · D. Top K and Top P cancel each other out
+
+<details><summary>Answer</summary>
+
+**C.** The recommended practice is to adjust **one parameter at a time** so you can tell what actually caused the change in output.
+
+B is a trap: the reasoning about attribution is right, but the cost claim is wrong — **temperature, Top P, and Top K affect neither price nor latency.** Only **max tokens** (output length) does.
+</details>
+
+**23.** Which statement correctly distinguishes temperature from Top K and Top P?
+
+A. Temperature filters tokens; Top K and Top P reshape probabilities · B. Temperature reshapes the probability distribution; Top K and Top P restrict which tokens can be sampled · C. All three do the same thing at different scales · D. Temperature applies to input tokens, Top K/Top P to output tokens
+
+<details><summary>Answer</summary>
+
+**B.** Temperature **sharpens or flattens** the whole distribution — low temperature exaggerates the lead of the top token, high temperature levels the field — but removes nothing. Top K and Top P then **truncate** the candidate list before a token is sampled.
+
+Order of operations: *reshape (temperature) → truncate (Top K / Top P) → sample.*
+</details>
+
+---
+
 ## Quick Revision Checklist
 
 - [ ] Temperature / Top P / Top K / length / stop sequences — what each changes, and that none affect price or latency
+- [ ] **Top K = Kount** (fixed number of tokens) · **Top P = Probability** (cumulative mass, pool size adapts to model confidence)
+- [ ] Order of operations: temperature **reshapes** the distribution → Top K/Top P **truncate** it → sample
+- [ ] Too random → lower temperature · too repetitive → raise it · deterministic output → temperature ≈ 0
+- [ ] Tune **one parameter at a time**; only **max tokens** affects cost and latency
 - [ ] RAG flow end to end; Bedrock Knowledge Bases; RAG data sources (S3, Confluence, SharePoint, Salesforce, web)
 - [ ] Vector stores: OpenSearch (k-NN), Aurora/RDS PostgreSQL, Neptune Analytics (GraphRAG), S3 Vectors
 - [ ] **Knowledge gap → RAG · behavior gap → fine-tuning**

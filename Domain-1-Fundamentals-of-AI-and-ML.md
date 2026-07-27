@@ -310,6 +310,64 @@ Running the model on a device close to where data is generated (a Raspberry Pi, 
 
 *Exam cue:* "limited or no internet connectivity" or "lowest possible latency on-device" → edge inference with a small model.
 
+#### Inferencing, explained properly
+
+**What inference actually is.** Training is the model *learning* — weights change. Inference is the model *working* — weights are frozen and never change, no matter how many predictions it makes. A model that "learns from user feedback in production" is not doing inference; it's being retrained on a schedule. That distinction is a favourite distractor.
+
+| | Training | Inference |
+|---|---|---|
+| Weights | Updated | **Frozen** |
+| Frequency | Periodic (days/weeks) | **Constant** (every request) |
+| Cost per run | Very high | Low |
+| **Total lifetime cost** | Often the smaller share | **Usually dominates** — it runs forever |
+| Hardware | AWS **Trainium** | AWS **Inferentia** |
+
+The counterintuitive bit worth remembering: one training run costs a fortune, but you do it rarely. Inference costs cents, but you do it millions of times. At scale, inference is where the money goes — which is why so much of this exam is about picking the cheapest inference mode that still meets the requirement.
+
+**Choosing among the four modes.** They serve the *same trained model*; only the serving infrastructure differs. Three questions decide it:
+
+```
+1. How fast must the answer come back?
+      → milliseconds        → Real-time or Serverless
+      → minutes is fine     → Asynchronous
+      → hours is fine       → Batch
+
+2. How big is one request?
+      → under ~4 MB         → Serverless possible
+      → under ~25 MB        → Real-time
+      → up to 1 GB          → Asynchronous only
+
+3. What does traffic look like?
+      → steady, all day     → Real-time (endpoint always warm)
+      → spiky, long idle    → Serverless (scales to zero, pay nothing idle)
+      → one big job         → Batch
+```
+
+**How each one behaves:**
+
+- **Real-time** — a persistent endpoint sitting there 24/7. Requests hit it and get an answer in milliseconds. You pay for the instance whether or not traffic arrives, so it's the most expensive option for bursty workloads and the only sane one for a chatbot or a live recommendation widget.
+- **Serverless** — same synchronous request/response, but AWS provisions capacity on demand and **scales to zero**. You pay only while it's running. The cost is a **cold start**: the first request after an idle period waits for capacity to spin up. Perfect when traffic is unpredictable with long quiet stretches; wrong when consistent low latency is contractual.
+- **Asynchronous** — you submit a request, it goes into a **queue**, and the result lands in S3 when ready. This is the only mode built for **big payloads (up to 1 GB) and long processing (up to an hour)** — a 40-minute video, a 500-page document. Also scales to zero when the queue is empty. The client doesn't block waiting.
+- **Batch transform** — no endpoint at all. Point it at a dataset in S3, it spins up compute, scores everything, writes results back to S3, and **shuts down**. Cheapest per record by a wide margin, because you never pay for idle infrastructure. The trade: no live predictions, and results are only as fresh as the last run.
+
+**The trap the exam sets repeatedly:** async and batch both sound like "not urgent," so questions separate them on **shape of the work, not speed**.
+
+> **One request that is large or slow → Asynchronous. Many requests scored together on a schedule → Batch.**
+
+A 900 MB video needing transcription is *one* large request → async. Twenty million customer records scored every Sunday night is *bulk* → batch.
+
+**"Batch" means three unrelated things on this exam** — worth re-flagging here:
+
+| Term | Domain | What it is |
+|---|---|---|
+| **Batch size** | 1 | Training hyperparameter — examples per weight update |
+| **Batch transform / batch inference** | 1 | Deployment mode — bulk scoring, no endpoint |
+| **Bedrock batch pricing** | 2 | Pricing mode — submit prompts offline for up to 50% off |
+
+**Why edge inference is its own category.** All four modes above run in the cloud, so all four require connectivity. Edge inference moves the model onto the device itself — a camera, a car, a factory sensor. You give up model capability (a small model must fit on constrained hardware) and gain three things the cloud can't offer: **sub-millisecond latency**, **offline operation**, and **data never leaving the device** (a privacy argument that shows up in Domain 5 too).
+
+*If a question mentions no/intermittent connectivity, a moving vehicle, a remote site, or "data must not leave the premises" → edge, every time.*
+
 ---
 
 ### Types of data
@@ -505,7 +563,70 @@ A typical MLOps setup chains four pipelines — **data → build & test → depl
 
 ### Model performance metrics
 
-Classification metrics come from the **confusion matrix**, which cross-tabulates predicted vs. actual values into **TP** (correctly flagged), **FP** (false alarm), **TN** (correctly ignored), and **FN** (missed case). It can be multi-dimensional for multiclass problems and is the best way to evaluate a classifier.
+#### The confusion matrix — read this before the metrics
+
+Every classification metric on this exam is derived from one small table. Learn the table and you can rebuild every formula from memory instead of memorizing four of them.
+
+A **confusion matrix** cross-tabulates what the model **predicted** against what was **actually** true. For a binary classifier that's four cells:
+
+```
+                        ACTUAL
+                  Positive     Negative
+              ┌────────────┬────────────┐
+    Positive  │     TP     │     FP     │
+PREDICTED     │  (correct) │ (false     │
+              │            │   alarm)   │
+              ├────────────┼────────────┤
+    Negative  │     FN     │     TN     │
+              │  (missed   │  (correct) │
+              │   case)    │            │
+              └────────────┴────────────┘
+```
+
+**How to read the names — they never change:**
+- Second word = **what the model said** (Positive / Negative).
+- First word = **whether it was right** (True / False).
+
+So a **False Negative** = the model *said negative*, and it was *wrong* → there really was something there and the model missed it.
+
+**The two errors, and why the distinction is the whole point:**
+
+| Error | Plain English | Also called |
+|---|---|---|
+| **False Positive (FP)** | Cried wolf — flagged something that was fine | Type I error, false alarm |
+| **False Negative (FN)** | Missed it — let something bad through | Type II error, miss |
+
+**Worked example — a fraud model scores 1,000 transactions.** 50 are genuinely fraudulent.
+
+```
+TP = 40   model caught 40 of the 50 frauds
+FN = 10   model missed 10 frauds  ← these become chargebacks
+FP = 30   model froze 30 legitimate cards ← these become angry customers
+TN = 920  model correctly ignored 920 good transactions
+```
+
+Now every metric falls out of those four numbers:
+
+- **Precision** = 40 / (40 + 30) = **57%** → *"when the model shouts fraud, it's right 57% of the time."* Denominator is everything the model **predicted positive**.
+- **Recall** = 40 / (40 + 10) = **80%** → *"of all real fraud, the model caught 80%."* Denominator is everything that **actually was positive**.
+- **Accuracy** = (40 + 920) / 1000 = **96%** → looks great, tells you almost nothing.
+- **F1** = 2 × (0.57 × 0.80) / (0.57 + 0.80) = **0.67**
+
+**The precision/recall tension.** These trade off against each other because they're governed by one dial — the **classification threshold** (how confident the model must be before it says "positive"). Lower the threshold and the model flags more things: recall rises, precision falls. Raise it and the model gets picky: precision rises, recall falls. You cannot maximize both; you choose based on **which mistake costs more**.
+
+| If the expensive mistake is… | Optimize for | Example |
+|---|---|---|
+| Missing a real case (**FN**) | **Recall** | Cancer screening, fraud detection, safety alerts |
+| Raising a false alarm (**FP**) | **Precision** | Spam filter binning a real email, auto-blocking accounts |
+| Both matter, classes imbalanced | **F1** | Most real-world classifiers |
+
+*Two mnemonics that hold up under exam pressure:*
+- **P**recision = how **P**ure the positives are. **R**ecall = how many you **R**etrieved.
+- Precision divides by the **predicted** column; recall divides by the **real** row.
+
+**Multiclass:** the matrix simply grows to N×N — actual classes on one axis, predicted on the other, with correct predictions running down the diagonal. Everything off the diagonal is a confusion, and the matrix shows you *which* classes get mixed up (e.g. the model keeps calling cats "dogs"), which a single accuracy number hides completely.
+
+**Exam-level takeaway:** the confusion matrix is described as the **best way to evaluate a classification model**, because it exposes the *kind* of error being made, not just how many.
 
 | Metric | Formula | Use it when |
 |---|---|---|
@@ -728,6 +849,191 @@ A. A large model on a real-time cloud endpoint · B. A small model deployed for 
 
 ---
 
+### Calculation questions — confusion matrix and metrics
+
+Questions 23–29 all use the same confusion matrix. A loan-default model scored **1,000 applications**; 120 applicants actually defaulted.
+
+```
+                        ACTUAL
+                  Default    No default
+              ┌───────────┬────────────┐
+    Default   │  TP = 80  │  FP = 20   │
+PREDICTED     ├───────────┼────────────┤
+  No default  │  FN = 40  │  TN = 860  │
+              └───────────┴────────────┘
+```
+
+**23.** What is the model's **precision**?
+
+A. 66.7% · B. 80% · C. 94% · D. 72.7%
+
+<details><summary>Answer</summary>
+
+**B — 80%.** Precision = TP / (TP + FP) = 80 / (80 + 20) = 80 / 100 = **0.80**.
+
+Denominator = everything the model **predicted** positive (the top row). Read as: *when this model says "will default," it is right 80% of the time.*
+</details>
+
+**24.** What is the model's **recall**?
+
+A. 80% · B. 94% · C. 66.7% · D. 33.3%
+
+<details><summary>Answer</summary>
+
+**C — 66.7%.** Recall = TP / (TP + FN) = 80 / (80 + 40) = 80 / 120 = **0.667**.
+
+Denominator = everything that **actually** was positive (the left column: 80 caught + 40 missed = the 120 real defaulters). Read as: *the model catches two-thirds of real defaulters and misses a third.*
+</details>
+
+**25.** What is the model's **accuracy**, and why is it misleading here?
+
+A. 80% · B. 94% · C. 66.7% · D. 86%
+
+<details><summary>Answer</summary>
+
+**B — 94%.** Accuracy = (TP + TN) / total = (80 + 860) / 1000 = **0.94**.
+
+It's misleading because the classes are imbalanced — only 12% of applicants defaulted. A model that approved *every single application* would score 88% accuracy while catching zero defaults. The 94% is carried almost entirely by the 860 true negatives, which are the easy cases.
+</details>
+
+**26.** What is the **F1 score**?
+
+A. 0.94 · B. 0.73 · C. 0.80 · D. 0.67
+
+<details><summary>Answer</summary>
+
+**B — 0.73.** F1 = 2 × (P × R) / (P + R) = 2 × (0.80 × 0.667) / (0.80 + 0.667) = 2 × 0.533 / 1.467 = **0.727**.
+
+Note where it lands: the simple average of 0.80 and 0.667 is 0.733, but F1 gives **0.727** — slightly lower. F1 is a *harmonic* mean, so it's always pulled toward the weaker of the two scores. The gap is small here; with precision 0.95 and recall 0.10 the simple average is 0.53 while F1 is 0.18. That's the point — you can't hide terrible recall behind excellent precision.
+</details>
+
+**27.** The 40 applicants in the **FN** cell represent what, in business terms?
+
+A. Good customers who were wrongly rejected · B. Defaulters the model approved · C. Applications flagged for manual review · D. Correctly rejected defaulters
+
+<details><summary>Answer</summary>
+
+**B — defaulters the model approved.** FN = predicted "no default," actually defaulted. These become real loan losses.
+
+The 20 in **FP** are the opposite mistake: good applicants wrongly rejected — lost revenue and an unhappy customer, but not a write-off. Deciding which of these two costs more is exactly how you choose between optimizing recall and precision.
+</details>
+
+**28.** The bank lowers the model's classification **threshold** so it flags more applications as likely defaults. What happens?
+
+A. Precision rises, recall falls · B. Recall rises, precision falls · C. Both rise · D. Accuracy is unchanged
+
+<details><summary>Answer</summary>
+
+**B — recall rises, precision falls.** Flagging more aggressively catches more of the real defaulters (FN drops → recall up), but also sweeps in more good applicants (FP rises → precision down).
+
+The threshold is the single dial connecting the two. **AUC-ROC** exists precisely to compare models across *all* threshold settings, so you can then pick the threshold that matches the business cost.
+</details>
+
+**29.** The team wants a single metric that reflects performance on this **imbalanced** dataset and weighs both error types. Which should they report?
+
+A. Accuracy · B. R² · C. F1 score · D. RMSE
+
+<details><summary>Answer</summary>
+
+**C — F1 score.** It balances precision and recall and is the standard choice for imbalanced classification. Accuracy is inflated by the majority class; R² and RMSE are **regression** metrics and don't apply to a classifier at all.
+</details>
+
+---
+
+### Calculation questions — regression metrics
+
+Questions 30–34 use the same predictions. A model forecasts house prices (in $1,000s) for four properties:
+
+| Property | Actual | Predicted | Error (Actual − Predicted) |
+|---|---|---|---|
+| A | 100 | 110 | −10 |
+| B | 150 | 140 | +10 |
+| C | 200 | 220 | −20 |
+| D | 250 | 230 | +20 |
+
+**30.** What is the **MAE**?
+
+A. 0 · B. 15 · C. 15.8 · D. 60
+
+<details><summary>Answer</summary>
+
+**B — 15.** MAE = average of the **absolute** errors = (10 + 10 + 20 + 20) / 4 = 60 / 4 = **15**.
+
+Interpretation: *predictions are off by about $15,000 on average.* Note that the raw errors sum to zero — that's why the absolute value matters; without it, over- and under-predictions cancel and you'd conclude the model is perfect.
+</details>
+
+**31.** What is the **RMSE**, and why is it larger than the MAE?
+
+A. 15, they're equal · B. 250 · C. ≈15.8, because squaring penalizes the two larger errors more heavily · D. ≈12.2, because squaring reduces the effect of outliers
+
+<details><summary>Answer</summary>
+
+**C — ≈15.8.** Square each error: 100 + 100 + 400 + 400 = 1,000. Mean = 250. Square root = **15.81**.
+
+RMSE ≥ MAE always, and the gap widens as errors become uneven. Squaring means a single error of 40 contributes as much as four errors of 20 — so **RMSE is the metric to use when large misses are disproportionately damaging**, and MAE when every dollar of error counts the same.
+</details>
+
+**32.** What is the **MAPE**?
+
+A. 15% · B. 8.7% · C. 6% · D. 12.5%
+
+<details><summary>Answer</summary>
+
+**B — ≈8.7%.** Each error as a percentage of its actual value: 10/100 = 10%, 10/150 = 6.7%, 20/200 = 10%, 20/250 = 8%. Average = 34.7 / 4 = **8.67%**.
+
+MAPE's value is that it is **scale-independent** — "off by 8.7%" means the same whether you're predicting house prices or daily sales, so you can compare models across different datasets. MAE of 15 tells you nothing until you know whether the values are around 100 or around 100,000.
+</details>
+
+**33.** The model reports **R² = 0.85**. What does this mean?
+
+A. Predictions are off by 15% on average · B. The model explains 85% of the variance in the target · C. The model is correct 85% of the time · D. 85% of predictions fall within the confidence interval
+
+<details><summary>Answer</summary>
+
+**B — the model explains 85% of the variance** in house prices; the remaining 15% is driven by factors not captured in the input features.
+
+R² is the one regression metric where **higher is better** (max 1.0). C is the accuracy definition and is wrong — "correct 85% of the time" is meaningless for regression, where predictions are almost never exactly right.
+</details>
+
+**34.** Which set of metrics is appropriate for evaluating this model?
+
+A. Precision, recall, F1 · B. MAE, RMSE, R² · C. AUC-ROC and the confusion matrix · D. Accuracy and F1
+
+<details><summary>Answer</summary>
+
+**B — MAE, RMSE, R².** House price is a **continuous** value, so this is regression. Everything in A, C, and D is derived from a confusion matrix and requires discrete class predictions.
+
+The fastest way to answer any metric question: *is the output a category or a number?* Category → confusion-matrix family. Number → error family.
+</details>
+
+**35.** Two regression models are compared: Model X has MAE 12 and RMSE 14; Model Y has MAE 11 and RMSE 26. Which is likely making occasional very large errors?
+
+A. Model X · B. Model Y · C. Neither · D. Cannot be determined from these metrics
+
+<details><summary>Answer</summary>
+
+**B — Model Y.** Its RMSE is more than double its MAE, which only happens when a few errors are far larger than the rest — squaring inflates them. Model X's tight gap (12 vs 14) indicates errors that are consistently sized.
+
+This RMSE-to-MAE gap is a genuinely useful diagnostic: *a wide gap means outlier errors; a narrow gap means uniform errors.* Model Y might have the better average, but if a single catastrophic mispricing is unacceptable, Model X is the safer deployment.
+</details>
+
+**36.** A model predicts whether an email is spam. It flags 200 emails as spam; 180 truly were. There were 240 spam emails in total. What are precision and recall?
+
+A. Precision 90%, recall 75% · B. Precision 75%, recall 90% · C. Precision 90%, recall 83% · D. Precision 83%, recall 90%
+
+<details><summary>Answer</summary>
+
+**A — precision 90%, recall 75%.**
+
+- TP = 180, FP = 200 − 180 = 20, FN = 240 − 180 = 60.
+- Precision = 180 / 200 = **90%** (of what it flagged, 90% was really spam).
+- Recall = 180 / 240 = **75%** (of all real spam, it caught 75%).
+
+For a spam filter this is the right balance to aim at: a **false positive sends a real email to the junk folder**, which is worse than a spam message slipping into the inbox — so precision should be the higher of the two.
+</details>
+
+---
+
 ## Quick Revision Checklist
 
 - [ ] AI ⊃ ML ⊃ DL ⊃ GenAI; rule-based systems (MYCIN) are AI but not ML
@@ -747,6 +1053,10 @@ A. A large model on a real-time cloud endpoint · B. A small model deployed for 
 - [ ] Model acronyms: GPT, BERT, RNN, CNN/ResNet, GAN, SVM, WaveNet, XGBoost, diffusion
 - [ ] When ML is the *wrong* tool — deterministic problems above all
 - [ ] Confusion matrix; precision vs. recall vs. F1 vs. accuracy; AUC-ROC
+- [ ] TP/FP/TN/FN naming rule (2nd word = what the model said, 1st = whether it was right); FP = Type I, FN = Type II
+- [ ] Precision divides by **predicted** positives; recall divides by **actual** positives; threshold is the dial between them
+- [ ] Async = one large/slow request · Batch = many records on a schedule (the most-confused pair)
+- [ ] Inference cost dominates lifetime spend; Trainium = training, Inferentia = inference
 - [ ] Regression metrics: MAE, MAPE, RMSE (lower better), R² (closer to 1 better)
 - [ ] ML project phases in order; MLOps principles; drift and retraining
 - [ ] Managed AI service one-liners; Bedrock vs. SageMaker AI
