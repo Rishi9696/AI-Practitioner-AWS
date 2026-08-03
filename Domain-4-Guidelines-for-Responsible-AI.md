@@ -24,6 +24,17 @@ AWS defines eight. Learn the one-line meaning of each.
 
 Also tested: **inclusivity** — the system works for all user groups, including different languages and accessibility needs.
 
+**Expanded explanations:**
+
+- **Fairness** — predictions shouldn't systematically disadvantage a group based on protected characteristics (gender, race, age). Training data reflects historical human bias, and models reproduce and can amplify it at scale. E.g. a hiring model learns from mostly-male past engineers and scores women lower even when nothing in the job description calls for that.
+- **Explainability** — the ability to answer "why did the model produce *this* output" for one individual decision, not just "does it perform well overall." Matters most in high-stakes individual decisions (credit, hiring, healthcare, justice) where someone has a right to know the basis of a decision about them.
+- **Privacy and security** — whether individuals control if/how their data is used, and whether the system protects it from exposure. Distinct risk from normal security: models can memorize and later leak snippets of training data. E.g. a clever prompt makes an LLM reproduce a real phone number from training data.
+- **Transparency** — a *system-level* property: do people know they're dealing with AI, and do they understand roughly how it works and its limits. Different from explainability (single decision) — transparency is honest disclosure of the system as a whole. E.g. a support chatbot that doesn't disclose it's automated.
+- **Veracity and robustness** — veracity = factually correct outputs; robustness = stays reliable under noisy/unusual/adversarial input rather than breaking or confabulating. Grouped together because both describe reliability under real-world (not curated) conditions. E.g. an LLM inventing a fake legal citation, or a vision model misclassifying after small added noise.
+- **Governance** — the organizational layer: policies, review boards, documentation, accountability that actually enforce the other seven principles rather than leaving them aspirational. E.g. a feature ships to production with no risk assessment or owner.
+- **Safety** — preventing physical, psychological, or societal harm from outputs/actions, including scenarios the designers didn't anticipate. Distinct from robustness: safety is about harmful consequences even when the system is "working as designed." E.g. a chatbot giving self-harm or weapon-building instructions.
+- **Controllability** — whether humans can monitor and intervene (adjust, override, throttle, shut down) when the system misbehaves. The safety net underneath every other dimension. E.g. a recommendation engine pushing extreme content with no way to retune or disable it.
+
 ### Bias — the exam's favorite topic
 
 **Formal definitions of bias types:**
@@ -36,6 +47,28 @@ Also tested: **inclusivity** — the system works for all user groups, including
 | **Confirmation bias** | Interpreting or favoring information that confirms pre-existing beliefs — applies more to **human decision-making** than to automated model output | A reviewer accepts results that match their expectations |
 | **Historical bias** | Past human decisions embedded in the data become learned patterns | A resume screener trained on a decade of biased hiring |
 | **Algorithmic bias** | Arises from model design or applying one model to groups that behave differently | A single risk score used across very different populations |
+
+**Expanded explanations — where each bias enters the pipeline:**
+
+- **Sampling bias** — *Definition:* enters at data collection. The dataset doesn't represent the real-world population fairly, so one group is over- or under-represented, and the model learns patterns that fit the majority well and everyone else poorly.
+  *Example:* a facial recognition system trained mostly on lighter-skinned faces performs worse on darker-skinned faces, since that group was underrepresented in training data.
+
+- **Measurement bias** — *Definition:* the metric or tool used to collect data doesn't accurately capture the real-world concept it's meant to represent — collection is consistent, but it's measuring the wrong (or a distorted) thing.
+  *Example:* a predictive policing model uses arrest rate as a proxy for crime rate. Arrest rate isn't a clean measurement of actual crime — it reflects where police patrol more, not where crime actually happens — so the model learns policing patterns rather than crime patterns.
+
+- **Observer bias** — *Definition:* enters at labeling/annotation — a human-in-the-loop problem where the person collecting or interpreting the data lets their own assumptions shape ambiguous cases.
+  *Example:* an annotator labeling "aggressive" tone in text unconsciously marks certain dialects or phrasing styles as more aggressive based on their own cultural assumptions, and that assumption leaks into the labels.
+
+- **Confirmation bias** — *Definition:* enters at human evaluation of results, not in the data or model itself — an evaluator favors information that confirms what they already expected, and scrutinizes disconfirming results less.
+  *Example:* a data scientist expects a new model to outperform the old one, sees a few favorable metrics, and declares success without checking subgroup performance that would have told a different story.
+
+- **Historical bias** — *Definition:* enters even with a perfectly accurate, representative dataset — the data faithfully reflects a world that was itself unfair, so the model learns to reproduce past inequities.
+  *Example:* a resume-screening model trained on ten years of a company's hiring decisions learns that most past engineering hires were men, so it downgrades resumes with signals correlated with being a woman, even though the model itself was never told to consider gender.
+
+- **Algorithmic bias** — *Definition:* enters at model design — either the architecture doesn't generalize across subgroups, or one model/threshold is applied uniformly to populations that behave differently.
+  *Example:* a single credit-risk score threshold is applied identically to two demographic groups with genuinely different financial behavior patterns, producing unequal outcomes across groups even though the underlying data wasn't biased.
+
+Memory aid: sampling & historical bias live **in the data**; measurement & observer bias live **in how data is collected/labeled**; confirmation bias lives **in the human reviewing results**; algorithmic bias lives **in the model/design applied afterward**.
 
 **Effects of bias:** discriminatory outcomes for demographic groups, reduced accuracy for underrepresented users, legal liability, loss of customer trust, reputational damage.
 
@@ -64,6 +97,13 @@ Also tested: **inclusivity** — the system works for all user groups, including
 | **Human audits, subgroup analysis, label-quality review** | Non-tool practices — measure performance separately per demographic group |
 
 *Guardrails are the answer whenever a question mentions blocking toxic content, restricting topics, filtering PII, or reducing hallucinations at the application layer.*
+
+**Four extra exam notes for this domain:**
+
+1. Expect questions pairing a responsible-AI dimension with the AWS service that addresses it — e.g. fairness/bias → Clarify, drift → Model Monitor, application-layer safety → Bedrock Guardrails, documentation/transparency → Model Cards / AI Service Cards.
+2. Fairness and bias questions often reference the specific bias types above (sampling, measurement, observer, confirmation, historical, algorithmic) — know they originate in data collection, labeling, human evaluation, or model design respectively, not interchangeably.
+3. Explainability questions are frequently framed as "black box" vs. "interpretable" — simpler models (linear/logistic regression, decision trees) are more explainable; deep neural networks and ensembles are less so, and that's a real accuracy-vs-transparency tradeoff, not a flaw to "fix."
+4. Governance questions often reference **AWS AI Service Cards** and **SageMaker Model Cards** by name — these are AWS's concrete documentation artifacts for transparency and governance, and the exam likes to test the distinction between the two (AI Service Cards = AWS's own services; Model Cards = your models).
 
 ### GenAI challenges and their mitigations
 
