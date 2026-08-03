@@ -42,7 +42,8 @@ Two task statements: securing AI systems (5.1), governance and compliance (5.2).
 
 ### Data lineage and source citation
 
-- **Data lineage** — the record of where data came from and every transformation applied. It covers **source citation** (attributing datasets, databases, and their **licences, terms of use, or permissions**) and **documenting data origins** (how the data was collected, how it was cleaned and curated, and what pre-processing and transformations were applied).
+- **Data lineage** — *Definition:* the process of tracking, recording, and visualizing the lifecycle of data as it moves from its origin source, through various transformations, to its final destination or consumption point. It covers **source citation** (attributing datasets, databases, and their **licences, terms of use, or permissions**) and **documenting data origins** (how the data was collected, how it was cleaned and curated, and what pre-processing and transformations were applied).
+  *Example:* a customer table is pulled from a production database, cleaned and de-duplicated in an ETL job, joined with a third-party licensed dataset, and used to train a model — data lineage is the record showing all of that: where each piece of data started, what happened to it at each step, and where it ended up, so an auditor can trace a model's prediction all the way back to its original source and licence.
 - **Cataloging** — organizing and documenting datasets so they can be found and understood (AWS Glue Data Catalog).
 - Together these deliver **transparency, traceability, and accountability**.
 - **SageMaker Model Cards** document a model's data sources, intended use, and limitations — and in GenAI can include source citations.
@@ -57,6 +58,20 @@ Two task statements: securing AI systems (5.1), governance and compliance (5.2).
 | **Accuracy** | Correct, up to date, and representative |
 | **Timeliness** | The age of the data in the data store is appropriate |
 | **Consistency** | Coherent and consistent throughout the data lifecycle |
+
+**Expanded explanations:**
+
+- **Completeness** — *Definition:* the data covers a diverse and comprehensive range of scenarios, so the model isn't blind to cases it will actually encounter in production.
+  *Example:* a fraud-detection dataset that only contains examples of credit card fraud but no wire-transfer fraud is incomplete — the model never learns to catch that whole category of real-world fraud.
+
+- **Accuracy** — *Definition:* the data is correct, up to date, and representative of the real-world thing it describes — not stale, mislabeled, or distorted.
+  *Example:* a product-pricing dataset that still shows prices from two years ago is inaccurate even though it was correct when collected, because it no longer represents reality.
+
+- **Timeliness** — *Definition:* the age of the data in the data store is appropriate for its intended use — some use cases need near-real-time data, others tolerate data that's months old.
+  *Example:* a stock-trading model needs data that's seconds old, while a model predicting annual customer churn works fine on data refreshed monthly — the same "age" of data can pass timeliness for one use case and fail it for another.
+
+- **Consistency** — *Definition:* the data is coherent and uniform throughout its entire lifecycle — the same entity or value is represented the same way across sources and over time, without contradictions.
+  *Example:* one system records a customer's country as "USA" and another as "United States" for the same customer — a model or query joining the two datasets treats them as different values for what should be the same fact.
 
 **Privacy-enhancing technologies** — data **masking** and **obfuscation** to minimize breach impact; **encryption** and **tokenization** to protect data during processing and use; anonymization and pseudonymization.
 

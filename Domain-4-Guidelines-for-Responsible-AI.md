@@ -124,6 +124,26 @@ Memory aid: sampling & historical bias live **in the data**; measurement & obser
 - **Loss of customer trust** — the hardest damage to repair.
 - **End-user risk** — harm from misuse or over-reliance on outputs.
 
+**Expanded explanations:**
+
+- **Intellectual property infringement claims** — *Definition:* GenAI models are trained on huge datasets that often include copyrighted material (text, images, code), and outputs can end up resembling or reproducing pieces of that material closely enough to raise infringement concerns; who owns AI-generated content (the prompter, the model builder, or no one) is still legally unresolved in most jurisdictions.
+  *Example:* a business publishes AI-generated marketing copy that closely echoes a copyrighted article, and faces both an infringement claim and uncertainty over whether it even owns the copy it published.
+
+- **Biased model outputs → discrimination claims and regulatory exposure** — *Definition:* when a model's outputs systematically disadvantage a protected group, that becomes a legal issue, not just a technical one — affected individuals can bring discrimination claims, and regulators in sectors like finance and employment can impose fines or sanctions.
+  *Example:* a lending model that scores applicants from a certain zip code lower triggers a fair-lending investigation, since biased automated decisions are treated the same as biased human decisions under the law.
+
+- **Hallucinations → liability for the business** — *Definition:* hallucinated outputs look confident and plausible even when false, so users may act on them without verifying; if the deploying business's customer suffers harm relying on that false output, the business can be held liable even though the model invented the error.
+  *Example:* a legal-assistant chatbot cites a fabricated case, a lawyer submits it in court, and the firm faces sanctions and reputational damage.
+
+- **Data privacy** — *Definition:* users often paste sensitive information into prompts (personal data, trade secrets, health records) without realizing where it's stored or how it's used afterward, and infrastructure that processes data across borders can violate laws restricting international transfer of personal data (e.g. GDPR).
+  *Example:* an employee pastes a customer's medical record into a prompt to summarize it, and that data is now stored on servers in a different country than regulations permit.
+
+- **Loss of customer trust** — *Definition:* trust erodes quickly from a single bad, biased, or leaked output, but doesn't rebuild through a technical fix alone — it typically requires sustained transparency and a track record of reliability over time, making it the hardest kind of damage to repair.
+  *Example:* after a chatbot gives a customer harmful financial advice, the company patches the model within a day, but customers keep avoiding the feature for months.
+
+- **End-user risk** — *Definition:* harm to the person actually using or affected by the system — either through misuse of the tool for a purpose it wasn't designed for, or through over-reliance on its outputs as if they were guaranteed correct (automation bias).
+  *Example:* a student submits an AI-generated answer containing a hallucinated fact without checking it, because they assumed the tool "wouldn't just make something up."
+
 ### Compliance challenges specific to AI
 
 | Challenge | Why it's hard |
